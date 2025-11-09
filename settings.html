@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bookmark Sync - Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    header {
+      background: #0078d4;
+      color: white;
+      padding: 20px;
+      border-radius: 8px 8px 0 0;
+    }
+
+    header h1 {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    .section h2 {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #0078d4;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      outline: none;
+      border-color: #0078d4;
+      box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #0078d4;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #005a9e;
+    }
+
+    .btn-secondary {
+      background: #e1e1e1;
+      color: #333;
+      margin-left: 10px;
+    }
+
+    .btn-secondary:hover {
+      background: #d0d0d0;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+    }
+
+    .status {
+      padding: 12px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.success {
+      background: #dff6dd;
+      color: #107c10;
+      border: 1px solid #107c10;
+    }
+
+    .status.error {
+      background: #ffe6e6;
+      color: #d13438;
+      border: 1px solid #d13438;
+    }
+
+    .info-box {
+      background: #e6f3ff;
+      border-left: 4px solid #0078d4;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+
+    .info-box p {
+      margin: 5px 0;
+      font-size: 13px;
+      color: #333;
+    }
+
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Bookmark Sync Settings</h1>
+    </header>
+
+    <div class="content">
+      <div id="statusMessage" class="status"></div>
+
+      <div class="info-box">
+        <p><strong>Note:</strong> Due to browser security restrictions, extensions cannot directly access local file paths.</p>
+        <p>To sync with local files (e.g., Google Drive), you'll need to:</p>
+        <p>1. Use the extension to export bookmarks (copy to clipboard)</p>
+        <p>2. Manually paste into your text files on Google Drive</p>
+        <p>3. To import, copy from your text files and paste into the extension</p>
+        <p>File paths below are stored for reference only.</p>
+      </div>
+
+      <div class="section">
+        <h2>File Paths</h2>
+
+        <div class="form-group">
+          <label for="mainFilePath">Main Bookmarks File Path</label>
+          <input type="text" id="mainFilePath" placeholder="e.g., C:\Users\YourName\Google Drive\bookmarks.txt">
+          <div class="help-text">Path to your main bookmarks text file (stored for reference)</div>
+        </div>
+
+        <div class="form-group">
+          <label for="privateFilePath">Private Bookmarks File Path</label>
+          <input type="text" id="privateFilePath" placeholder="e.g., C:\Users\YourName\Google Drive\private-bookmarks.txt">
+          <div class="help-text">Path to your private bookmarks text file (stored for reference)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Encryption</h2>
+
+        <div class="form-group">
+          <label for="encryptionKey">Encryption Password</label>
+          <input type="text" id="encryptionKey" placeholder="Enter a strong password for private bookmarks">
+          <div class="help-text">Used to encrypt/decrypt private bookmarks. Remember this password!</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Scan Settings</h2>
+
+        <div class="form-group">
+          <label for="scanTexts">Texts to Scan For (one per line)</label>
+          <textarea id="scanTexts" placeholder="404 Not Found&#10;Page not found&#10;Error&#10;Domain expired"></textarea>
+          <div class="help-text">If any of these texts are found on a bookmark's page, it will be marked as corrupt</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Import/Export</h2>
+
+        <div class="form-group">
+          <label>Main Bookmarks Data</label>
+          <textarea id="mainBookmarksData" placeholder="Paste main bookmarks JSON here to import..."></textarea>
+          <div class="help-text">Copy this data to save to your file, or paste from your file to import</div>
+          <button id="copyMainBtn" class="btn btn-secondary" style="margin-top: 10px;">Copy Main Bookmarks</button>
+          <button id="importMainBtn" class="btn btn-secondary">Import Main Bookmarks</button>
+        </div>
+
+        <div class="form-group">
+          <label>Private Bookmarks Data (Encrypted)</label>
+          <textarea id="privateBookmarksData" placeholder="Paste private bookmarks JSON here to import..."></textarea>
+          <div class="help-text">Copy this data to save to your file, or paste from your file to import</div>
+          <button id="copyPrivateBtn" class="btn btn-secondary" style="margin-top: 10px;">Copy Private Bookmarks</button>
+          <button id="importPrivateBtn" class="btn btn-secondary">Import Private Bookmarks</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn btn-primary">Save Settings</button>
+        <button id="cancelBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

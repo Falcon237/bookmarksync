@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bookmark Sync</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Bookmark Sync</h1>
+      <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="main">Main Bookmarks</button>
+      <button class="tab-btn" data-tab="private">Private Bookmarks</button>
+    </div>
+
+    <div class="tab-content" id="mainTab">
+      <div class="toolbar">
+        <button id="syncMainBtn" class="btn btn-primary">Sync from File</button>
+        <button id="saveMainBtn" class="btn">Save to File</button>
+      </div>
+
+      <div class="add-bookmark">
+        <input type="text" id="addUrlMain" placeholder="Add bookmark URL...">
+        <button id="addBtnMain" class="btn btn-small">Add</button>
+      </div>
+
+      <div id="mainBookmarks" class="bookmarks-container"></div>
+    </div>
+
+    <div class="tab-content hidden" id="privateTab">
+      <div class="toolbar">
+        <button id="syncPrivateBtn" class="btn btn-primary">Sync from File</button>
+        <button id="savePrivateBtn" class="btn">Save to File</button>
+        <button id="toggleEncryptBtn" class="btn btn-warning">🔓 Decrypt</button>
+      </div>
+
+      <div class="add-bookmark">
+        <input type="text" id="addUrlPrivate" placeholder="Add bookmark URL...">
+        <button id="addBtnPrivate" class="btn btn-small">Add</button>
+      </div>
+
+      <div id="privateBookmarks" class="bookmarks-container encrypted"></div>
+    </div>
+
+    <div class="actions">
+      <div class="random-section">
+        <input type="number" id="randomCount" min="1" value="1" placeholder="Count">
+        <button id="randomBtn" class="btn btn-success">Open Random</button>
+      </div>
+
+      <div class="open-options">
+        <label>
+          <input type="radio" name="openMode" value="tabs" checked>
+          New Tabs
+        </label>
+        <label>
+          <input type="radio" name="openMode" value="private">
+          Private Window
+        </label>
+      </div>
+    </div>
+
+    <div class="scan-section">
+      <button id="scanBtn" class="btn btn-secondary">Scan for Corrupt Bookmarks</button>
+      <button id="deleteCorruptBtn" class="btn btn-danger">Delete All Corrupt</button>
+      <div id="scanStatus" class="status"></div>
+    </div>
+  </div>
+
+  <script src="crypto-utils.js"></script>
+  <script src="file-manager.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
