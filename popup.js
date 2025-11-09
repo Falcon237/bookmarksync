@@ -35,6 +35,16 @@ function setupEventListeners() {
   document.getElementById('addBtnMain').addEventListener('click', () => addBookmark('main'));
   document.getElementById('addBtnPrivate').addEventListener('click', () => addBookmark('private'));
 
+  // Import from TXT file
+  document.getElementById('importTxtBtnMain').addEventListener('click', () => {
+    document.getElementById('importFileMain').click();
+  });
+  document.getElementById('importTxtBtnPrivate').addEventListener('click', () => {
+    document.getElementById('importFilePrivate').click();
+  });
+  document.getElementById('importFileMain').addEventListener('change', (e) => importUrlsFromTxt(e, 'main'));
+  document.getElementById('importFilePrivate').addEventListener('change', (e) => importUrlsFromTxt(e, 'private'));
+
   // Random opener
   document.getElementById('randomBtn').addEventListener('click', openRandomBookmarks);
 
@@ -243,6 +253,98 @@ async function addBookmark(type) {
     console.error('Error adding bookmark:', error);
     showStatus('Error adding bookmark: ' + error.message, 'error');
   }
+}
+
+async function importUrlsFromTxt(event, type) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const statusId = type === 'main' ? 'importStatusMain' : 'importStatusPrivate';
+  const statusEl = document.getElementById(statusId);
+
+  try {
+    // Read file content
+    const text = await file.text();
+
+    // Extract all URLs from the text using regex
+    // This regex matches http:// and https:// URLs
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+    const urls = text.match(urlRegex);
+
+    if (!urls || urls.length === 0) {
+      statusEl.textContent = 'No URLs found in file';
+      statusEl.className = 'import-status error';
+      setTimeout(() => statusEl.textContent = '', 3000);
+      return;
+    }
+
+    // Remove duplicates
+    const uniqueUrls = [...new Set(urls)];
+
+    console.log(`Found ${uniqueUrls.length} unique URLs to import`);
+    statusEl.textContent = `Importing ${uniqueUrls.length} URLs...`;
+    statusEl.className = 'import-status info';
+
+    // If importing to private bookmarks and they're encrypted, decrypt them
+    if (type === 'private' && !privateDecrypted) {
+      const btn = document.getElementById('toggleEncryptBtn');
+      const container = document.getElementById('privateBookmarks');
+      container.classList.remove('encrypted');
+      btn.textContent = '🔒 Encrypt';
+      privateDecrypted = true;
+    }
+
+    // Add each URL as a bookmark
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < uniqueUrls.length; i++) {
+      const url = uniqueUrls[i].trim();
+
+      // Validate URL
+      try {
+        new URL(url);
+        await FileManager.addBookmark(url, type);
+        successCount++;
+
+        // Update progress
+        statusEl.textContent = `Imported ${successCount} of ${uniqueUrls.length} URLs...`;
+
+        // Add a small delay to avoid overwhelming the browser
+        if (i % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error('Error importing URL:', url, error);
+        errorCount++;
+      }
+    }
+
+    // Show final result
+    await loadAndDisplayBookmarks(type);
+
+    if (errorCount === 0) {
+      statusEl.textContent = `✓ Successfully imported ${successCount} URLs`;
+      statusEl.className = 'import-status success';
+      showStatus(`Imported ${successCount} bookmarks`, 'success');
+    } else {
+      statusEl.textContent = `Imported ${successCount} URLs, ${errorCount} failed`;
+      statusEl.className = 'import-status error';
+      showStatus(`Imported ${successCount} bookmarks, ${errorCount} failed`, 'error');
+    }
+
+    setTimeout(() => statusEl.textContent = '', 5000);
+
+  } catch (error) {
+    console.error('Error reading file:', error);
+    statusEl.textContent = 'Error reading file';
+    statusEl.className = 'import-status error';
+    showStatus('Error reading file: ' + error.message, 'error');
+    setTimeout(() => statusEl.textContent = '', 3000);
+  }
+
+  // Reset file input
+  event.target.value = '';
 }
 
 async function toggleEncryption() {

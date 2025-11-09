@@ -28,6 +28,12 @@
         <button id="addBtnMain" class="btn btn-small">Add</button>
       </div>
 
+      <div class="import-section">
+        <input type="file" id="importFileMain" accept=".txt" style="display: none;">
+        <button id="importTxtBtnMain" class="btn btn-small">📁 Import URLs from TXT</button>
+        <span id="importStatusMain" class="import-status"></span>
+      </div>
+
       <div id="mainBookmarks" class="bookmarks-container"></div>
     </div>
 
@@ -41,6 +47,12 @@
       <div class="add-bookmark">
         <input type="text" id="addUrlPrivate" placeholder="Add bookmark URL...">
         <button id="addBtnPrivate" class="btn btn-small">Add</button>
+      </div>
+
+      <div class="import-section">
+        <input type="file" id="importFilePrivate" accept=".txt" style="display: none;">
+        <button id="importTxtBtnPrivate" class="btn btn-small">📁 Import URLs from TXT</button>
+        <span id="importStatusPrivate" class="import-status"></span>
       </div>
 
       <div id="privateBookmarks" class="bookmarks-container encrypted"></div>

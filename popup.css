@@ -171,6 +171,30 @@ header h1 {
   font-size: 13px;
 }
 
+.import-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.import-status {
+  font-size: 12px;
+  color: #666;
+}
+
+.import-status.success {
+  color: #107c10;
+}
+
+.import-status.error {
+  color: #d13438;
+}
+
+.import-status.info {
+  color: #0078d4;
+}
+
 .bookmarks-container {
   background: white;
   border: 1px solid #ddd;
