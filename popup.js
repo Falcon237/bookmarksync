@@ -216,6 +216,16 @@ async function addBookmark(type) {
   try {
     await FileManager.addBookmark(url, type);
     input.value = '';
+
+    // If adding to private bookmarks and they're encrypted, decrypt them so user can see the new bookmark
+    if (type === 'private' && !privateDecrypted) {
+      const btn = document.getElementById('toggleEncryptBtn');
+      const container = document.getElementById('privateBookmarks');
+      container.classList.remove('encrypted');
+      btn.textContent = '🔒 Encrypt';
+      privateDecrypted = true;
+    }
+
     await loadAndDisplayBookmarks(type);
     showStatus('Bookmark added successfully', 'success');
   } catch (error) {
