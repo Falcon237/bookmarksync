@@ -60,14 +60,19 @@ function switchTab(tab) {
 }
 
 async function loadAndDisplayBookmarks(type) {
+  console.log('Loading bookmarks for type:', type);
   const bookmarks = await FileManager.loadBookmarks(type);
+  console.log('Loaded bookmarks:', bookmarks);
   const containerId = type === 'main' ? 'mainBookmarks' : 'privateBookmarks';
   const container = document.getElementById(containerId);
 
   if (!bookmarks.bookmarks || bookmarks.bookmarks.length === 0) {
+    console.log('No bookmarks found, showing empty state');
     container.innerHTML = '<div class="empty-state">No bookmarks yet. Add one above!</div>';
     return;
   }
+
+  console.log('Rendering', bookmarks.bookmarks.length, 'bookmarks');
 
   // Group bookmarks by folder
   const folderMap = new Map();
@@ -214,21 +219,28 @@ async function addBookmark(type) {
   }
 
   try {
-    await FileManager.addBookmark(url, type);
+    console.log('Adding bookmark:', url, 'to', type);
+    const bookmark = await FileManager.addBookmark(url, type);
+    console.log('Bookmark added:', bookmark);
     input.value = '';
 
     // If adding to private bookmarks and they're encrypted, decrypt them so user can see the new bookmark
-    if (type === 'private' && !privateDecrypted) {
+    if (type === 'private') {
       const btn = document.getElementById('toggleEncryptBtn');
       const container = document.getElementById('privateBookmarks');
-      container.classList.remove('encrypted');
-      btn.textContent = '🔒 Encrypt';
-      privateDecrypted = true;
+
+      if (!privateDecrypted) {
+        console.log('Auto-decrypting private bookmarks to show new bookmark');
+        container.classList.remove('encrypted');
+        btn.textContent = '🔒 Encrypt';
+        privateDecrypted = true;
+      }
     }
 
     await loadAndDisplayBookmarks(type);
     showStatus('Bookmark added successfully', 'success');
   } catch (error) {
+    console.error('Error adding bookmark:', error);
     showStatus('Error adding bookmark: ' + error.message, 'error');
   }
 }

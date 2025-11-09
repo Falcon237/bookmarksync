@@ -25,7 +25,9 @@ class FileManager {
   }
 
   static async addBookmark(url, type = 'main', folder = null) {
+    console.log('FileManager.addBookmark - Loading existing bookmarks for type:', type);
     const bookmarks = await this.loadBookmarks(type);
+    console.log('FileManager.addBookmark - Current bookmarks:', bookmarks);
 
     // Try to fetch the page title
     let title = url;
@@ -37,7 +39,7 @@ class FileManager {
         title = match[1].trim();
       }
     } catch (error) {
-      console.log('Could not fetch title for URL:', url);
+      console.log('Could not fetch title for URL:', url, error.message);
     }
 
     const bookmark = {
@@ -50,7 +52,9 @@ class FileManager {
     };
 
     bookmarks.bookmarks.push(bookmark);
+    console.log('FileManager.addBookmark - Saving bookmarks, total count:', bookmarks.bookmarks.length);
     await this.saveBookmarks(bookmarks, type);
+    console.log('FileManager.addBookmark - Bookmark saved successfully');
     return bookmark;
   }
 
