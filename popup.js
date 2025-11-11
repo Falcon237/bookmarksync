@@ -393,16 +393,30 @@ async function openBookmarks(bookmarks) {
   const openMode = document.querySelector('input[name="openMode"]:checked').value;
 
   if (openMode === 'private') {
-    // Open in private window
-    const urls = bookmarks.map(b => b.url);
-    await chrome.windows.create({
-      url: urls,
+    // Open in private window with delay between each tab
+    const privateWindow = await chrome.windows.create({
+      url: bookmarks[0].url,
       incognito: true
     });
+
+    // Open remaining bookmarks with 300ms delay
+    for (let i = 1; i < bookmarks.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await chrome.tabs.create({
+        windowId: privateWindow.id,
+        url: bookmarks[i].url,
+        active: false
+      });
+    }
   } else {
-    // Open as new tabs
-    for (const bookmark of bookmarks) {
-      await chrome.tabs.create({ url: bookmark.url, active: false });
+    // Open as new tabs with 300ms delay between each
+    for (let i = 0; i < bookmarks.length; i++) {
+      await chrome.tabs.create({ url: bookmarks[i].url, active: false });
+
+      // Add delay except after the last bookmark
+      if (i < bookmarks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
     }
   }
 }
