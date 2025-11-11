@@ -475,14 +475,28 @@ async function syncBookmarks(type) {
 }
 
 async function saveBookmarks(type) {
-  const json = await FileManager.exportToJSON(type);
+  const bookmarks = await FileManager.loadBookmarks(type);
 
-  try {
-    await navigator.clipboard.writeText(json);
-    showStatus('Bookmarks copied to clipboard! Paste into your file.', 'success');
-  } catch (error) {
-    showStatus('Error copying to clipboard: ' + error.message, 'error');
+  if (!bookmarks.bookmarks || bookmarks.bookmarks.length === 0) {
+    showStatus('No bookmarks to save', 'error');
+    return;
   }
+
+  // Create a text file with all URLs (one per line)
+  const urls = bookmarks.bookmarks.map(b => b.url).join('\n');
+
+  // Create download
+  const blob = new Blob([urls], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${type}-bookmarks-${new Date().toISOString().split('T')[0]}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  showStatus(`Downloaded ${bookmarks.bookmarks.length} bookmarks as TXT file`, 'success');
 }
 
 function showStatus(message, type) {
