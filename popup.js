@@ -2,6 +2,7 @@
 let currentTab = 'main';
 let privateDecrypted = false;
 let selectedBookmarks = new Set();
+let encryptionPassword = null; // Temporary password storage (only in memory)
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -229,6 +230,16 @@ async function addBookmark(type) {
   }
 
   try {
+    // If adding to private bookmarks, ensure we have a password
+    if (type === 'private' && !encryptionPassword) {
+      const password = prompt('Enter your encryption password:');
+      if (!password) {
+        showStatus('Password required for private bookmarks', 'error');
+        return;
+      }
+      encryptionPassword = password;
+    }
+
     console.log('Adding bookmark:', url, 'to', type);
     const bookmark = await FileManager.addBookmark(url, type);
     console.log('Bookmark added:', bookmark);
@@ -282,6 +293,19 @@ async function importUrlsFromTxt(event, type) {
     const uniqueUrls = [...new Set(urls)];
 
     console.log(`Found ${uniqueUrls.length} unique URLs to import`);
+
+    // If importing to private bookmarks, ensure we have a password
+    if (type === 'private' && !encryptionPassword) {
+      const password = prompt('Enter your encryption password to import private bookmarks:');
+      if (!password) {
+        statusEl.textContent = 'Password required for private bookmarks';
+        statusEl.className = 'import-status error';
+        setTimeout(() => statusEl.textContent = '', 3000);
+        return;
+      }
+      encryptionPassword = password;
+    }
+
     statusEl.textContent = `Importing ${uniqueUrls.length} URLs...`;
     statusEl.className = 'import-status info';
 
@@ -352,23 +376,29 @@ async function toggleEncryption() {
   const container = document.getElementById('privateBookmarks');
 
   if (privateDecrypted) {
-    // Encrypt
+    // Encrypt (hide)
     container.classList.add('encrypted');
     btn.textContent = '🔓 Decrypt';
     privateDecrypted = false;
+    // Clear password from memory when encrypting
+    encryptionPassword = null;
   } else {
-    // Decrypt
-    const settings = await chrome.storage.sync.get('encryptionKey');
+    // Decrypt - ask for password
+    const password = prompt('Enter your encryption password:');
 
-    if (!settings.encryptionKey) {
-      showStatus('Please set an encryption password in settings', 'error');
-      chrome.runtime.openOptionsPage();
+    if (!password) {
+      showStatus('Password required to decrypt private bookmarks', 'error');
       return;
     }
 
+    // Store password temporarily in memory (not in storage!)
+    encryptionPassword = password;
+
+    // Decrypt and show
     container.classList.remove('encrypted');
     btn.textContent = '🔒 Encrypt';
     privateDecrypted = true;
+    showStatus('Private bookmarks decrypted', 'success');
   }
 }
 

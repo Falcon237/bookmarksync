@@ -8,13 +8,11 @@ async function loadSettings() {
   const settings = await chrome.storage.sync.get([
     'mainFilePath',
     'privateFilePath',
-    'encryptionKey',
     'scanTexts'
   ]);
 
   document.getElementById('mainFilePath').value = settings.mainFilePath || '';
   document.getElementById('privateFilePath').value = settings.privateFilePath || '';
-  document.getElementById('encryptionKey').value = settings.encryptionKey || '';
   document.getElementById('scanTexts').value = settings.scanTexts || '404 Not Found\nPage not found\nError\nDomain expired';
 
   // Load bookmark data for export
@@ -40,7 +38,6 @@ async function saveSettings() {
   const settings = {
     mainFilePath: document.getElementById('mainFilePath').value,
     privateFilePath: document.getElementById('privateFilePath').value,
-    encryptionKey: document.getElementById('encryptionKey').value,
     scanTexts: document.getElementById('scanTexts').value
   };
 
