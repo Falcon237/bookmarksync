@@ -5,16 +5,16 @@ chrome.runtime.onInstalled.addListener(async () => {
   console.log('Bookmark Sync extension installed');
 
   // Set default settings if not already set
-  const settings = await chrome.storage.sync.get([
-    'scanTexts',
-    'encryptionKey'
-  ]);
+  const settings = await chrome.storage.sync.get(['scanTexts']);
 
   if (!settings.scanTexts) {
     await chrome.storage.sync.set({
       scanTexts: '404 Not Found\nPage not found\nError\nDomain expired'
     });
   }
+
+  // Remove old encryption key from storage if it exists (security improvement)
+  await chrome.storage.sync.remove('encryptionKey');
 
   // Initialize bookmark storage if empty
   const bookmarks = await chrome.storage.local.get(['mainBookmarks', 'privateBookmarks']);
