@@ -475,25 +475,6 @@ async function importUrlsFromTxt(event, type) {
 
     setTimeout(() => statusEl.textContent = '', 5000);
 
-    // After importing main bookmarks on first startup, ask for private bookmarks
-    if (type === 'main' && successCount > 0) {
-      const privateBookmarks = await FileManager.loadBookmarks('private');
-      const privateEmpty = !privateBookmarks.bookmarks || privateBookmarks.bookmarks.length === 0;
-
-      if (privateEmpty) {
-        setTimeout(() => {
-          const importPrivate = confirm(`Main bookmarks imported successfully!\n\nDo you also want to import your Private bookmarks now?`);
-          if (importPrivate) {
-            showStatus('Please select your Private Bookmarks file...', 'info');
-            switchTab('private');
-            setTimeout(() => {
-              document.getElementById('importFilePrivate').click();
-            }, 300);
-          }
-        }, 1000);
-      }
-    }
-
   } catch (error) {
     console.error('Error reading file:', error);
     statusEl.textContent = 'Error reading file';
