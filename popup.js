@@ -40,14 +40,7 @@ async function checkAndAutoImport() {
     // Check which file handles are configured
     const configured = await FileAccessManager.hasConfiguredFiles();
 
-    // If no files are configured at all, force configuration
-    if (!configured.main && !configured.private) {
-      showStatus('First time setup - please select your bookmark files', 'info');
-      await forceFileConfiguration();
-      return;
-    }
-
-    // Load from saved file handles
+    // Load from saved file handles if available
     let mainResult = null;
     let privateResult = null;
 
@@ -96,67 +89,6 @@ async function checkAndAutoImport() {
     console.error('Error in auto-import:', error);
     showStatus('Error loading bookmarks: ' + error.message, 'error');
   }
-}
-
-// Force user to configure both files before proceeding
-async function forceFileConfiguration() {
-  let mainConfigured = false;
-  let privateConfigured = false;
-
-  // Keep asking until both are configured
-  while (!mainConfigured || !privateConfigured) {
-    if (!mainConfigured) {
-      const proceed = confirm(
-        'BOOKMARK SYNC - FIRST TIME SETUP\n\n' +
-        'Please select your MAIN bookmarks file (TXT format).\n\n' +
-        'This file will be automatically loaded every time you open the extension.\n\n' +
-        'Click OK to select the file.'
-      );
-
-      if (!proceed) {
-        // User cancelled - ask again
-        const retry = confirm('You must select both bookmark files to use this extension.\n\nTry again?');
-        if (!retry) {
-          showStatus('Extension cannot start without bookmark files configured', 'error');
-          return;
-        }
-        continue;
-      }
-
-      const result = await requestAndImportFile('main');
-      if (result) {
-        mainConfigured = true;
-        await displayConfiguredFiles();
-      }
-    }
-
-    if (!privateConfigured) {
-      const proceed = confirm(
-        'BOOKMARK SYNC - FIRST TIME SETUP\n\n' +
-        'Please select your PRIVATE bookmarks file (TXT format).\n\n' +
-        'This file will be automatically loaded every time you open the extension.\n\n' +
-        'Click OK to select the file.'
-      );
-
-      if (!proceed) {
-        // User cancelled - ask again
-        const retry = confirm('You must select both bookmark files to use this extension.\n\nTry again?');
-        if (!retry) {
-          showStatus('Extension cannot start without bookmark files configured', 'error');
-          return;
-        }
-        continue;
-      }
-
-      const result = await requestAndImportFile('private');
-      if (result) {
-        privateConfigured = true;
-        await displayConfiguredFiles();
-      }
-    }
-  }
-
-  showStatus('Setup complete! Bookmarks loaded successfully', 'success');
 }
 
 // Import URLs directly without UI interaction (fast bulk import)
