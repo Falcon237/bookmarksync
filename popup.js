@@ -12,42 +12,110 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function checkAndAutoImport() {
-  // Check if bookmarks are empty
-  const bookmarks = await chrome.storage.local.get(['mainBookmarks', 'privateBookmarks']);
+  showStatus('Loading bookmarks...', 'info');
 
-  const mainEmpty = !bookmarks.mainBookmarks || !bookmarks.mainBookmarks.bookmarks || bookmarks.mainBookmarks.bookmarks.length === 0;
-  const privateEmpty = !bookmarks.privateBookmarks || !bookmarks.privateBookmarks.bookmarks || bookmarks.privateBookmarks.bookmarks.length === 0;
+  try {
+    // Try to load from saved file handles first
+    const mainText = await FileAccessManager.loadFromSavedFile('main');
+    const privateText = await FileAccessManager.loadFromSavedFile('private');
 
-  // If both are empty, prompt for file import
-  if (mainEmpty && privateEmpty) {
-    const shouldImport = confirm('No bookmarks found!\n\nDo you want to import your bookmarks from TXT files now?');
+    let mainLoaded = false;
+    let privateLoaded = false;
 
-    if (shouldImport) {
-      showStatus('Please select your Main Bookmarks file...', 'info');
-
-      // Trigger file selection for main bookmarks
-      setTimeout(() => {
-        document.getElementById('importFileMain').click();
-      }, 500);
+    // Import main bookmarks if file was loaded
+    if (mainText) {
+      const urls = FileAccessManager.extractUrls(mainText);
+      if (urls.length > 0) {
+        await importUrlsDirectly(urls, 'main');
+        mainLoaded = true;
+        console.log(`Auto-loaded ${urls.length} main bookmarks from saved file`);
+      }
     }
-  } else if (mainEmpty) {
-    // Only main is empty
-    const shouldImport = confirm('No main bookmarks found!\n\nDo you want to import your main bookmarks from TXT file?');
 
-    if (shouldImport) {
-      showStatus('Please select your Main Bookmarks file...', 'info');
-      document.getElementById('importFileMain').click();
+    // Import private bookmarks if file was loaded
+    if (privateText) {
+      const urls = FileAccessManager.extractUrls(privateText);
+      if (urls.length > 0) {
+        await importUrlsDirectly(urls, 'private');
+        privateLoaded = true;
+        console.log(`Auto-loaded ${urls.length} private bookmarks from saved file`);
+      }
     }
-  } else if (privateEmpty) {
-    // Only private is empty
-    const shouldImport = confirm('No private bookmarks found!\n\nDo you want to import your private bookmarks from TXT file?');
 
-    if (shouldImport) {
-      showStatus('Please select your Private Bookmarks file...', 'info');
-      // Switch to private tab first
-      switchTab('private');
-      document.getElementById('importFilePrivate').click();
+    // If we loaded anything, show success
+    if (mainLoaded || privateLoaded) {
+      const message = [];
+      if (mainLoaded) message.push('main');
+      if (privateLoaded) message.push('private');
+      showStatus(`Loaded ${message.join(' and ')} bookmarks from files`, 'success');
+      return;
     }
+
+    // No saved files - check if bookmarks exist in storage
+    const bookmarks = await chrome.storage.local.get(['mainBookmarks', 'privateBookmarks']);
+    const mainEmpty = !bookmarks.mainBookmarks || !bookmarks.mainBookmarks.bookmarks || bookmarks.mainBookmarks.bookmarks.length === 0;
+    const privateEmpty = !bookmarks.privateBookmarks || !bookmarks.privateBookmarks.bookmarks || bookmarks.privateBookmarks.bookmarks.length === 0;
+
+    // If no bookmarks and no saved files, request file selection
+    if (mainEmpty || privateEmpty) {
+      const message = [];
+      if (mainEmpty) message.push('main');
+      if (privateEmpty) message.push('private');
+
+      alert(`No ${message.join(' or ')} bookmarks found!\n\nPlease select your bookmark files to get started.`);
+
+      // Request main file if needed
+      if (mainEmpty) {
+        await requestAndImportFile('main');
+      }
+
+      // Request private file if needed
+      if (privateEmpty) {
+        setTimeout(async () => {
+          await requestAndImportFile('private');
+        }, 500);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error in auto-import:', error);
+    showStatus('Error loading bookmarks: ' + error.message, 'error');
+  }
+}
+
+// Import URLs directly without UI interaction
+async function importUrlsDirectly(urls, type) {
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i].trim();
+    try {
+      new URL(url);
+      await FileManager.addBookmark(url, type);
+    } catch (error) {
+      console.error('Error importing URL:', url, error);
+    }
+  }
+}
+
+// Request file from user and import
+async function requestAndImportFile(type) {
+  try {
+    const key = type === 'main' ? 'mainFileHandle' : 'privateFileHandle';
+    const fileHandle = await FileAccessManager.requestAndSaveFile(key);
+
+    if (fileHandle) {
+      const text = await FileAccessManager.readFileContent(fileHandle);
+      const urls = FileAccessManager.extractUrls(text);
+
+      if (urls.length > 0) {
+        showStatus(`Importing ${urls.length} ${type} bookmarks...`, 'info');
+        await importUrlsDirectly(urls, type);
+        await loadAndDisplayBookmarks(type);
+        showStatus(`Imported ${urls.length} ${type} bookmarks`, 'success');
+      }
+    }
+  } catch (error) {
+    console.error(`Error requesting ${type} file:`, error);
+    showStatus(`Error loading ${type} bookmarks`, 'error');
   }
 }
 
