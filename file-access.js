@@ -137,6 +137,40 @@ class FileAccessManager {
     // Remove duplicates
     return [...new Set(urls)];
   }
+
+  // Get file name from handle (async to get file info)
+  static async getFileName(fileHandle) {
+    try {
+      const file = await fileHandle.getFile();
+      return file.name;
+    } catch (error) {
+      console.error('Error getting file name:', error);
+      return null;
+    }
+  }
+
+  // Check if file handles are configured
+  static async hasConfiguredFiles() {
+    const mainHandle = await this.getFileHandle('mainFileHandle');
+    const privateHandle = await this.getFileHandle('privateFileHandle');
+    return { main: !!mainHandle, private: !!privateHandle };
+  }
+
+  // Get both file names
+  static async getConfiguredFileNames() {
+    const mainHandle = await this.getFileHandle('mainFileHandle');
+    const privateHandle = await this.getFileHandle('privateFileHandle');
+
+    const names = {};
+    if (mainHandle) {
+      names.main = await this.getFileName(mainHandle);
+    }
+    if (privateHandle) {
+      names.private = await this.getFileName(privateHandle);
+    }
+
+    return names;
+  }
 }
 
 // Make available globally

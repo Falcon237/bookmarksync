@@ -7,74 +7,89 @@ let encryptionPassword = null; // Temporary password storage (only in memory)
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  await displayConfiguredFiles();
   await checkAndAutoImport();
   await loadAndDisplayBookmarks('main');
 });
+
+// Display configured file names
+async function displayConfiguredFiles() {
+  const fileNames = await FileAccessManager.getConfiguredFileNames();
+  const fileStatusEl = document.getElementById('fileStatus');
+
+  if (fileNames.main || fileNames.private) {
+    const parts = [];
+    if (fileNames.main) {
+      parts.push(`Main: <span class="file-name">${fileNames.main}</span>`);
+    }
+    if (fileNames.private) {
+      parts.push(`Private: <span class="file-name">${fileNames.private}</span>`);
+    }
+
+    fileStatusEl.innerHTML = `📁 Loaded from files: ${parts.join(' | ')}`;
+    fileStatusEl.classList.add('show');
+  } else {
+    fileStatusEl.classList.remove('show');
+  }
+}
 
 async function checkAndAutoImport() {
   showStatus('Loading bookmarks...', 'info');
 
   try {
-    // Try to load from saved file handles first
-    const mainText = await FileAccessManager.loadFromSavedFile('main');
-    const privateText = await FileAccessManager.loadFromSavedFile('private');
+    // Check which file handles are configured
+    const configured = await FileAccessManager.hasConfiguredFiles();
 
-    let mainLoaded = false;
-    let privateLoaded = false;
-
-    // Import main bookmarks if file was loaded
-    if (mainText) {
-      const urls = FileAccessManager.extractUrls(mainText);
-      if (urls.length > 0) {
-        await importUrlsDirectly(urls, 'main');
-        mainLoaded = true;
-        console.log(`Auto-loaded ${urls.length} main bookmarks from saved file`);
-      }
-    }
-
-    // Import private bookmarks if file was loaded
-    if (privateText) {
-      const urls = FileAccessManager.extractUrls(privateText);
-      if (urls.length > 0) {
-        await importUrlsDirectly(urls, 'private');
-        privateLoaded = true;
-        console.log(`Auto-loaded ${urls.length} private bookmarks from saved file`);
-      }
-    }
-
-    // If we loaded anything, show success
-    if (mainLoaded || privateLoaded) {
-      const message = [];
-      if (mainLoaded) message.push('main');
-      if (privateLoaded) message.push('private');
-      showStatus(`Loaded ${message.join(' and ')} bookmarks from files`, 'success');
+    // If no files are configured at all, force configuration
+    if (!configured.main && !configured.private) {
+      showStatus('First time setup - please select your bookmark files', 'info');
+      await forceFileConfiguration();
       return;
     }
 
-    // No saved files - check if bookmarks exist in storage
-    const bookmarks = await chrome.storage.local.get(['mainBookmarks', 'privateBookmarks']);
-    const mainEmpty = !bookmarks.mainBookmarks || !bookmarks.mainBookmarks.bookmarks || bookmarks.mainBookmarks.bookmarks.length === 0;
-    const privateEmpty = !bookmarks.privateBookmarks || !bookmarks.privateBookmarks.bookmarks || bookmarks.privateBookmarks.bookmarks.length === 0;
+    // Load from saved file handles
+    let mainResult = null;
+    let privateResult = null;
 
-    // If no bookmarks and no saved files, request file selection
-    if (mainEmpty || privateEmpty) {
-      const message = [];
-      if (mainEmpty) message.push('main');
-      if (privateEmpty) message.push('private');
+    if (configured.main) {
+      const mainText = await FileAccessManager.loadFromSavedFile('main');
+      if (mainText) {
+        const urls = FileAccessManager.extractUrls(mainText);
+        if (urls.length > 0) {
+          mainResult = await importUrlsDirectly(urls, 'main');
+          console.log(`Auto-loaded ${urls.length} URLs from main file (${mainResult.added} new, ${mainResult.skipped} duplicates)`);
+        }
+      }
+    }
 
-      alert(`No ${message.join(' or ')} bookmarks found!\n\nPlease select your bookmark files to get started.`);
+    if (configured.private) {
+      const privateText = await FileAccessManager.loadFromSavedFile('private');
+      if (privateText) {
+        const urls = FileAccessManager.extractUrls(privateText);
+        if (urls.length > 0) {
+          privateResult = await importUrlsDirectly(urls, 'private');
+          console.log(`Auto-loaded ${urls.length} URLs from private file (${privateResult.added} new, ${privateResult.skipped} duplicates)`);
+        }
+      }
+    }
 
-      // Request main file if needed
-      if (mainEmpty) {
-        await requestAndImportFile('main');
+    // Show results
+    if (mainResult || privateResult) {
+      const messages = [];
+      if (mainResult && mainResult.added > 0) {
+        messages.push(`${mainResult.added} main`);
+      }
+      if (privateResult && privateResult.added > 0) {
+        messages.push(`${privateResult.added} private`);
       }
 
-      // Request private file if needed
-      if (privateEmpty) {
-        setTimeout(async () => {
-          await requestAndImportFile('private');
-        }, 500);
+      if (messages.length > 0) {
+        showStatus(`Loaded ${messages.join(' and ')} new bookmarks from files`, 'success');
+      } else {
+        showStatus('Bookmarks loaded (no new URLs)', 'info');
       }
+    } else {
+      showStatus('Ready', 'success');
     }
 
   } catch (error) {
@@ -83,17 +98,89 @@ async function checkAndAutoImport() {
   }
 }
 
-// Import URLs directly without UI interaction
-async function importUrlsDirectly(urls, type) {
-  for (let i = 0; i < urls.length; i++) {
-    const url = urls[i].trim();
-    try {
-      new URL(url);
-      await FileManager.addBookmark(url, type);
-    } catch (error) {
-      console.error('Error importing URL:', url, error);
+// Force user to configure both files before proceeding
+async function forceFileConfiguration() {
+  let mainConfigured = false;
+  let privateConfigured = false;
+
+  // Keep asking until both are configured
+  while (!mainConfigured || !privateConfigured) {
+    if (!mainConfigured) {
+      const proceed = confirm(
+        'BOOKMARK SYNC - FIRST TIME SETUP\n\n' +
+        'Please select your MAIN bookmarks file (TXT format).\n\n' +
+        'This file will be automatically loaded every time you open the extension.\n\n' +
+        'Click OK to select the file.'
+      );
+
+      if (!proceed) {
+        // User cancelled - ask again
+        const retry = confirm('You must select both bookmark files to use this extension.\n\nTry again?');
+        if (!retry) {
+          showStatus('Extension cannot start without bookmark files configured', 'error');
+          return;
+        }
+        continue;
+      }
+
+      const result = await requestAndImportFile('main');
+      if (result) {
+        mainConfigured = true;
+        await displayConfiguredFiles();
+      }
+    }
+
+    if (!privateConfigured) {
+      const proceed = confirm(
+        'BOOKMARK SYNC - FIRST TIME SETUP\n\n' +
+        'Please select your PRIVATE bookmarks file (TXT format).\n\n' +
+        'This file will be automatically loaded every time you open the extension.\n\n' +
+        'Click OK to select the file.'
+      );
+
+      if (!proceed) {
+        // User cancelled - ask again
+        const retry = confirm('You must select both bookmark files to use this extension.\n\nTry again?');
+        if (!retry) {
+          showStatus('Extension cannot start without bookmark files configured', 'error');
+          return;
+        }
+        continue;
+      }
+
+      const result = await requestAndImportFile('private');
+      if (result) {
+        privateConfigured = true;
+        await displayConfiguredFiles();
+      }
     }
   }
+
+  showStatus('Setup complete! Bookmarks loaded successfully', 'success');
+}
+
+// Import URLs directly without UI interaction (fast bulk import)
+async function importUrlsDirectly(urls, type) {
+  // Validate all URLs first
+  const validUrls = [];
+  for (const url of urls) {
+    const trimmedUrl = url.trim();
+    try {
+      new URL(trimmedUrl);
+      validUrls.push(trimmedUrl);
+    } catch (error) {
+      console.error('Invalid URL, skipping:', url, error);
+    }
+  }
+
+  // Use fast bulk import (skips title fetching)
+  if (validUrls.length > 0) {
+    const result = await FileManager.addBookmarksBulk(validUrls, type);
+    console.log(`Bulk import complete: ${result.added} added, ${result.skipped} duplicates skipped`);
+    return result;
+  }
+
+  return { added: 0, skipped: 0 };
 }
 
 // Request file from user and import
@@ -108,14 +195,18 @@ async function requestAndImportFile(type) {
 
       if (urls.length > 0) {
         showStatus(`Importing ${urls.length} ${type} bookmarks...`, 'info');
-        await importUrlsDirectly(urls, type);
+        const result = await importUrlsDirectly(urls, type);
         await loadAndDisplayBookmarks(type);
-        showStatus(`Imported ${urls.length} ${type} bookmarks`, 'success');
+        showStatus(`Imported ${result.added} new ${type} bookmarks`, 'success');
+        return true; // Success
       }
+      return true; // File selected but no URLs (still count as configured)
     }
+    return false; // User cancelled file selection
   } catch (error) {
     console.error(`Error requesting ${type} file:`, error);
     showStatus(`Error loading ${type} bookmarks`, 'error');
+    return false; // Error
   }
 }
 
@@ -427,43 +518,27 @@ async function importUrlsFromTxt(event, type) {
       privateDecrypted = true;
     }
 
-    // Add each URL as a bookmark
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (let i = 0; i < uniqueUrls.length; i++) {
-      const url = uniqueUrls[i].trim();
-
-      // Validate URL
-      try {
-        new URL(url);
-        await FileManager.addBookmark(url, type);
-        successCount++;
-
-        // Update progress
-        statusEl.textContent = `Imported ${successCount} of ${uniqueUrls.length} URLs...`;
-
-        // Add a small delay to avoid overwhelming the browser
-        if (i % 10 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      } catch (error) {
-        console.error('Error importing URL:', url, error);
-        errorCount++;
-      }
-    }
+    // Use fast bulk import
+    const result = await importUrlsDirectly(uniqueUrls, type);
 
     // Show final result
     await loadAndDisplayBookmarks(type);
 
-    if (errorCount === 0) {
-      statusEl.textContent = `✓ Successfully imported ${successCount} URLs`;
+    if (result.added > 0) {
+      const message = result.skipped > 0
+        ? `✓ Added ${result.added} new URLs (${result.skipped} duplicates skipped)`
+        : `✓ Successfully imported ${result.added} URLs`;
+      statusEl.textContent = message;
       statusEl.className = 'import-status success';
-      showStatus(`Imported ${successCount} bookmarks`, 'success');
+      showStatus(`Imported ${result.added} bookmarks`, 'success');
+    } else if (result.skipped > 0) {
+      statusEl.textContent = `All ${result.skipped} URLs already exist`;
+      statusEl.className = 'import-status info';
+      showStatus(`No new bookmarks added (all duplicates)`, 'info');
     } else {
-      statusEl.textContent = `Imported ${successCount} URLs, ${errorCount} failed`;
+      statusEl.textContent = 'No valid URLs found';
       statusEl.className = 'import-status error';
-      showStatus(`Imported ${successCount} bookmarks, ${errorCount} failed`, 'error');
+      showStatus('No valid URLs found', 'error');
     }
 
     setTimeout(() => statusEl.textContent = '', 5000);

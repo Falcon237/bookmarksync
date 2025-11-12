@@ -58,6 +58,48 @@ class FileManager {
     return bookmark;
   }
 
+  // Fast bulk import - skips title fetching for speed
+  static async addBookmarksBulk(urls, type = 'main', folder = null) {
+    console.log('FileManager.addBookmarksBulk - Loading existing bookmarks for type:', type);
+    const bookmarks = await this.loadBookmarks(type);
+
+    // Get existing URLs to avoid duplicates
+    const existingUrls = new Set(bookmarks.bookmarks.map(b => b.url));
+
+    let addedCount = 0;
+    let skippedCount = 0;
+
+    // Add all new URLs at once without fetching titles
+    for (const url of urls) {
+      // Skip if already exists
+      if (existingUrls.has(url)) {
+        skippedCount++;
+        continue;
+      }
+
+      const bookmark = {
+        id: `${Date.now()}-${addedCount}`, // Ensure unique IDs
+        url: url,
+        title: url, // Use URL as title for fast import
+        folder: folder,
+        corrupt: false,
+        dateAdded: new Date().toISOString()
+      };
+
+      bookmarks.bookmarks.push(bookmark);
+      existingUrls.add(url);
+      addedCount++;
+    }
+
+    // Save once at the end
+    if (addedCount > 0) {
+      await this.saveBookmarks(bookmarks, type);
+      console.log(`FileManager.addBookmarksBulk - Added ${addedCount} bookmarks, skipped ${skippedCount} duplicates`);
+    }
+
+    return { added: addedCount, skipped: skippedCount };
+  }
+
   static async removeBookmark(id, type = 'main') {
     const bookmarks = await this.loadBookmarks(type);
     bookmarks.bookmarks = bookmarks.bookmarks.filter(b => b.id !== id);

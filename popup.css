@@ -44,6 +44,24 @@ header h1 {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.file-status {
+  background: #e6f3ff;
+  padding: 8px 15px;
+  font-size: 12px;
+  color: #0078d4;
+  border-bottom: 1px solid #b3d9ff;
+  display: none;
+}
+
+.file-status.show {
+  display: block;
+}
+
+.file-status .file-name {
+  font-weight: 600;
+  margin: 0 3px;
+}
+
 .tabs {
   display: flex;
   background: #fff;
