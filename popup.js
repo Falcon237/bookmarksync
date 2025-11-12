@@ -7,8 +7,49 @@ let encryptionPassword = null; // Temporary password storage (only in memory)
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  await checkAndAutoImport();
   await loadAndDisplayBookmarks('main');
 });
+
+async function checkAndAutoImport() {
+  // Check if bookmarks are empty
+  const bookmarks = await chrome.storage.local.get(['mainBookmarks', 'privateBookmarks']);
+
+  const mainEmpty = !bookmarks.mainBookmarks || !bookmarks.mainBookmarks.bookmarks || bookmarks.mainBookmarks.bookmarks.length === 0;
+  const privateEmpty = !bookmarks.privateBookmarks || !bookmarks.privateBookmarks.bookmarks || bookmarks.privateBookmarks.bookmarks.length === 0;
+
+  // If both are empty, prompt for file import
+  if (mainEmpty && privateEmpty) {
+    const shouldImport = confirm('No bookmarks found!\n\nDo you want to import your bookmarks from TXT files now?');
+
+    if (shouldImport) {
+      showStatus('Please select your Main Bookmarks file...', 'info');
+
+      // Trigger file selection for main bookmarks
+      setTimeout(() => {
+        document.getElementById('importFileMain').click();
+      }, 500);
+    }
+  } else if (mainEmpty) {
+    // Only main is empty
+    const shouldImport = confirm('No main bookmarks found!\n\nDo you want to import your main bookmarks from TXT file?');
+
+    if (shouldImport) {
+      showStatus('Please select your Main Bookmarks file...', 'info');
+      document.getElementById('importFileMain').click();
+    }
+  } else if (privateEmpty) {
+    // Only private is empty
+    const shouldImport = confirm('No private bookmarks found!\n\nDo you want to import your private bookmarks from TXT file?');
+
+    if (shouldImport) {
+      showStatus('Please select your Private Bookmarks file...', 'info');
+      // Switch to private tab first
+      switchTab('private');
+      document.getElementById('importFilePrivate').click();
+    }
+  }
+}
 
 function setupEventListeners() {
   // Tab switching
@@ -358,6 +399,25 @@ async function importUrlsFromTxt(event, type) {
     }
 
     setTimeout(() => statusEl.textContent = '', 5000);
+
+    // After importing main bookmarks on first startup, ask for private bookmarks
+    if (type === 'main' && successCount > 0) {
+      const privateBookmarks = await FileManager.loadBookmarks('private');
+      const privateEmpty = !privateBookmarks.bookmarks || privateBookmarks.bookmarks.length === 0;
+
+      if (privateEmpty) {
+        setTimeout(() => {
+          const importPrivate = confirm(`Main bookmarks imported successfully!\n\nDo you also want to import your Private bookmarks now?`);
+          if (importPrivate) {
+            showStatus('Please select your Private Bookmarks file...', 'info');
+            switchTab('private');
+            setTimeout(() => {
+              document.getElementById('importFilePrivate').click();
+            }, 300);
+          }
+        }, 1000);
+      }
+    }
 
   } catch (error) {
     console.error('Error reading file:', error);
