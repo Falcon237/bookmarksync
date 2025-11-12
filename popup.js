@@ -429,9 +429,9 @@ async function openBookmarks(bookmarks) {
       incognito: true
     });
 
-    // Open remaining bookmarks with 300ms delay
+    // Open remaining bookmarks with 750ms delay
     for (let i = 1; i < bookmarks.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 750));
       await chrome.tabs.create({
         windowId: privateWindow.id,
         url: bookmarks[i].url,
@@ -439,13 +439,13 @@ async function openBookmarks(bookmarks) {
       });
     }
   } else {
-    // Open as new tabs with 300ms delay between each
+    // Open as new tabs with 750ms delay between each
     for (let i = 0; i < bookmarks.length; i++) {
       await chrome.tabs.create({ url: bookmarks[i].url, active: false });
 
       // Add delay except after the last bookmark
       if (i < bookmarks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 750));
       }
     }
   }
