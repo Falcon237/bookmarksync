@@ -1,84 +1,126 @@
 (() => {
   let isEnabled = true;
   let cloudEnabled = true;
-  let localDebounceMs = 50;
   let cloudDebounceMs = 400;
   let localTimer = null;
   let cloudTimer = null;
   let lastText = '';
   let isAccepting = false;
+  let statsWordsAccepted = 0;
 
   async function init() {
-    await localPredictor.init();
-
-    const settings = await chrome.storage.sync.get({
-      enabled: true,
-      cloudEnabled: true,
-      localDebounceMs: 50,
-      cloudDebounceMs: 400,
-    });
-
-    isEnabled = settings.enabled;
-    cloudEnabled = settings.cloudEnabled;
-    localDebounceMs = settings.localDebounceMs;
-    cloudDebounceMs = settings.cloudDebounceMs;
-
-    observeTextFields();
-    setupGlobalListeners();
-  }
-
-  function isTextInput(el) {
-    if (!el) return false;
-    if (el.tagName === 'TEXTAREA') return true;
-    if (el.tagName === 'INPUT') {
-      const type = (el.type || '').toLowerCase();
-      return ['text', 'search', 'email', 'url', ''].includes(type);
+    try {
+      await localPredictor.init();
+    } catch (e) {
+      console.warn('[AI Tastatur] Predictor init failed:', e);
     }
-    if (el.isContentEditable) return true;
-    return false;
-  }
 
-  function observeTextFields() {
-    document.addEventListener('focusin', (e) => {
-      if (!isEnabled) return;
-      if (isTextInput(e.target)) {
-        ghostText.attach(e.target);
-      }
-    });
+    try {
+      const settings = await chrome.storage.sync.get({
+        enabled: true,
+        cloudEnabled: true,
+        cloudDebounceMs: 400,
+      });
+      isEnabled = settings.enabled;
+      cloudEnabled = settings.cloudEnabled;
+      cloudDebounceMs = settings.cloudDebounceMs;
+    } catch (e) {
+      // Use defaults
+    }
 
-    document.addEventListener('focusout', (e) => {
-      setTimeout(() => {
-        if (!isTextInput(document.activeElement)) {
-          ghostText.detach();
-        }
-      }, 100);
-    });
-  }
+    try {
+      const s = await chrome.storage.local.get({ wordsAccepted: 0 });
+      statsWordsAccepted = s.wordsAccepted;
+    } catch (e) {
+      // Use default
+    }
 
-  function setupGlobalListeners() {
-    document.addEventListener('input', handleInput, true);
-    document.addEventListener('keydown', handleKeydown, true);
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('focusout', onFocusOut, true);
+    document.addEventListener('input', onInput, true);
+    document.addEventListener('keydown', onKeydown, true);
+    document.addEventListener('keyup', onKeyup, true);
+    document.addEventListener('click', onClick, true);
 
     chrome.storage.onChanged.addListener((changes) => {
       if (changes.enabled) isEnabled = changes.enabled.newValue;
       if (changes.cloudEnabled) cloudEnabled = changes.cloudEnabled.newValue;
-      if (changes.localDebounceMs) localDebounceMs = changes.localDebounceMs.newValue;
       if (changes.cloudDebounceMs) cloudDebounceMs = changes.cloudDebounceMs.newValue;
     });
+
+    if (isTextInput(document.activeElement)) {
+      ghostText.attach(document.activeElement);
+    }
+
+    console.log('[AI Tastatur 2.0] Aktiv auf', window.location.hostname);
   }
 
-  function handleInput(e) {
+  function isTextInput(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.tagName === 'TEXTAREA') return !el.readOnly && !el.disabled;
+    if (el.tagName === 'INPUT') {
+      const type = (el.type || 'text').toLowerCase();
+      return ['text', 'search', 'email', 'url', 'tel', ''].includes(type) && !el.readOnly && !el.disabled;
+    }
+    if (el.isContentEditable && el.getAttribute('contenteditable') !== 'false') return true;
+    return false;
+  }
+
+  function onFocusIn(e) {
+    if (!isEnabled) return;
+    const el = e.target;
+    if (isTextInput(el)) {
+      ghostText.attach(el);
+      lastText = getTextBeforeCursor(el);
+    }
+  }
+
+  function onFocusOut(e) {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || !isTextInput(active)) {
+        ghostText.detach();
+        lastText = '';
+      }
+    }, 150);
+  }
+
+  function onClick(e) {
+    if (!isEnabled) return;
+    if (ghostText.currentPrediction && e.target !== ghostText.suggestionBar) {
+      ghostText.hide();
+    }
+  }
+
+  function onInput(e) {
     if (!isEnabled || isAccepting) return;
     const el = e.target;
     if (!isTextInput(el)) return;
+    schedulePrediction(el);
+  }
 
-    const text = getTextContent(el);
+  function onKeyup(e) {
+    if (!isEnabled || isAccepting) return;
+    const el = e.target;
+    if (!isTextInput(el)) return;
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      ghostText.hide();
+    }
+  }
+
+  function schedulePrediction(el) {
+    const text = getTextBeforeCursor(el);
     if (text === lastText) return;
 
     const oldText = lastText;
     lastText = text;
 
-    if (text.length < oldText.length || text.length < 2) {
+    if (text.length < oldText.length) {
+      ghostText.hide();
+      return;
+    }
+
+    if (text.trim().length < 2) {
       ghostText.hide();
       return;
     }
@@ -86,87 +128,25 @@
     if (localTimer) clearTimeout(localTimer);
     if (cloudTimer) clearTimeout(cloudTimer);
 
-    localTimer = setTimeout(() => {
+    localTimer = setTimeout(() => runLocalPrediction(text), 30);
+
+    if (cloudEnabled && text.trim().length > 8) {
+      cloudTimer = setTimeout(() => runCloudPrediction(text), cloudDebounceMs);
+    }
+  }
+
+  function runLocalPrediction(text) {
+    try {
       const predictions = localPredictor.predict(text);
-      if (predictions.length > 0) {
-        const best = predictions[0];
-        ghostText.show(best.text, predictions.slice(1));
+      if (predictions.length > 0 && getTextBeforeCursor(document.activeElement) === text) {
+        ghostText.show(predictions[0].text, predictions.slice(1));
       }
-    }, localDebounceMs);
-
-    if (cloudEnabled && text.length > 10) {
-      cloudTimer = setTimeout(() => {
-        requestCloudPrediction(text);
-      }, cloudDebounceMs);
+    } catch (e) {
+      console.warn('[AI Tastatur] Local prediction error:', e);
     }
   }
 
-  function handleKeydown(e) {
-    if (!isEnabled) return;
-    if (!ghostText.currentPrediction) return;
-
-    if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      isAccepting = true;
-
-      const accepted = ghostText.currentPrediction;
-      ghostText.acceptFull();
-
-      const el = e.target;
-      const fullText = getTextContent(el);
-      localPredictor.learn(fullText);
-
-      lastText = fullText;
-      isAccepting = false;
-      return;
-    }
-
-    if (e.key === 'ArrowRight' && !e.shiftKey && !e.ctrlKey) {
-      const el = e.target;
-      if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-        if (el.selectionStart === el.value.length) {
-          e.preventDefault();
-          e.stopPropagation();
-          isAccepting = true;
-          ghostText.acceptWord();
-          lastText = getTextContent(el);
-          isAccepting = false;
-          return;
-        }
-      }
-    }
-
-    if (e.key === 'Escape') {
-      ghostText.hide();
-      return;
-    }
-
-    if (e.key === 'ArrowDown' && ghostText.alternatives.length > 0) {
-      e.preventDefault();
-      ghostText.selectNext();
-      return;
-    }
-  }
-
-  function getTextContent(el) {
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-      return el.value.substring(0, el.selectionStart);
-    }
-    if (el.isContentEditable) {
-      const selection = window.getSelection();
-      if (selection.rangeCount > 0) {
-        const range = document.createRange();
-        range.setStart(el, 0);
-        range.setEnd(selection.anchorNode, selection.anchorOffset);
-        return range.toString();
-      }
-      return el.textContent;
-    }
-    return '';
-  }
-
-  async function requestCloudPrediction(text) {
+  async function runCloudPrediction(text) {
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'predict',
@@ -175,9 +155,12 @@
       });
 
       if (response && response.prediction) {
-        const currentText = getTextContent(document.activeElement);
-        if (currentText === text || currentText.startsWith(text)) {
-          ghostText.show(response.prediction, response.alternatives || []);
+        const current = getTextBeforeCursor(document.activeElement);
+        if (current === text || current.startsWith(text)) {
+          const alts = (response.alternatives || []).map(a =>
+            typeof a === 'string' ? { text: a, score: 50 } : a
+          );
+          ghostText.show(response.prediction, alts);
         }
       }
     } catch (e) {
@@ -185,29 +168,115 @@
     }
   }
 
-  function getPageContext() {
-    const title = document.title;
-    const url = window.location.hostname;
-    const activeEl = document.activeElement;
+  function onKeydown(e) {
+    if (!isEnabled) return;
+    if (!ghostText.currentPrediction) return;
 
-    let fieldType = 'text';
-    if (activeEl) {
-      const placeholder = activeEl.getAttribute('placeholder') || '';
-      const ariaLabel = activeEl.getAttribute('aria-label') || '';
-      const name = activeEl.getAttribute('name') || '';
+    if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
 
-      if (/email|mail|nachricht|message/i.test(placeholder + ariaLabel + name)) {
-        fieldType = 'email';
-      } else if (/search|suche/i.test(placeholder + ariaLabel + name)) {
-        fieldType = 'search';
-      } else if (/comment|kommentar/i.test(placeholder + ariaLabel + name)) {
-        fieldType = 'comment';
-      } else if (/chat|message/i.test(placeholder + ariaLabel + name)) {
-        fieldType = 'chat';
+      isAccepting = true;
+      const prediction = ghostText.currentPrediction;
+      ghostText.acceptFull();
+
+      const wordCount = prediction.trim().split(/\s+/).length;
+      statsWordsAccepted += wordCount;
+      try {
+        chrome.storage.local.set({
+          wordsAccepted: statsWordsAccepted,
+          predictionsAccepted: (statsWordsAccepted) // approximate
+        });
+      } catch (e) {}
+
+      const el = document.activeElement;
+      if (el) {
+        localPredictor.learn(getTextBeforeCursor(el));
+        lastText = getTextBeforeCursor(el);
+      }
+
+      isAccepting = false;
+      return;
+    }
+
+    if (e.key === 'ArrowRight' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+      const el = e.target;
+      const atEnd = (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')
+        ? el.selectionStart === el.value.length
+        : false;
+
+      if (atEnd) {
+        e.preventDefault();
+        e.stopPropagation();
+        isAccepting = true;
+        ghostText.acceptWord();
+        if (el) lastText = getTextBeforeCursor(el);
+        isAccepting = false;
+        return;
       }
     }
 
-    return { title, url, fieldType };
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      ghostText.hide();
+      return;
+    }
+
+    if (e.key === 'ArrowDown' && ghostText.alternatives.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      ghostText.selectNext();
+      return;
+    }
+  }
+
+  function getTextBeforeCursor(el) {
+    if (!el) return '';
+    try {
+      if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+        const pos = el.selectionStart;
+        return pos != null ? el.value.substring(0, pos) : el.value;
+      }
+      if (el.isContentEditable) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = document.createRange();
+          range.setStart(el, 0);
+          range.setEnd(sel.anchorNode, sel.anchorOffset);
+          return range.toString();
+        }
+        return el.textContent || '';
+      }
+    } catch (e) {
+      return '';
+    }
+    return '';
+  }
+
+  function getPageContext() {
+    const activeEl = document.activeElement;
+    let fieldType = 'text';
+
+    if (activeEl) {
+      const hints = [
+        activeEl.getAttribute('placeholder'),
+        activeEl.getAttribute('aria-label'),
+        activeEl.getAttribute('name'),
+        activeEl.getAttribute('id'),
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      if (/email|mail|nachricht|message|compose|reply/.test(hints)) fieldType = 'email';
+      else if (/search|suche|query/.test(hints)) fieldType = 'search';
+      else if (/comment|kommentar|review/.test(hints)) fieldType = 'comment';
+      else if (/chat|message|msg/.test(hints)) fieldType = 'chat';
+    }
+
+    return {
+      title: document.title.substring(0, 60),
+      url: window.location.hostname,
+      fieldType
+    };
   }
 
   if (document.readyState === 'loading') {
